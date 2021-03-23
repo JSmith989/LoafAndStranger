@@ -5,6 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.0.78" />
+    <PackageReference Include="Glimpse.Ado" Version="1.7.3" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="2.1.2" />
   </ItemGroup>
 
