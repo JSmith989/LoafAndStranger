@@ -4,64 +4,44 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
+using Dapper;
 
 namespace LoafAndStranger.DataAccess
 {
     public class LoafRepository
     {
         const string ConnectionString = "Server=localhost;Database=LoafAndStranger;Trusted_Connection=True;";
-        static List<Loaf> _loaves = new List<Loaf>
-            {
-                new Loaf { Id = 1, Price = 5.50m, Size = LoafSize.Medium, Sliced = true, Type = "Rye" },
-                new Loaf { Id = 2, Price = 2.50m, Size = LoafSize.Small, Sliced = false, Type = "French" }
-            };
         
         public List<Loaf> GetAll()
         {
             var loaves = new List<Loaf>();
 
             //1 create connection
-            using var connection = new SqlConnection(ConnectionString);
+            using var db = new SqlConnection(ConnectionString);
 
-            //2 open connection
-            connection.Open();
 
-            //3 create a command
-            var command = connection.CreateCommand();
-            // or
-            /*var command = new SqlCommand();
-            command.Connection = connection;*/
-
-            //4 telling the command what you want to do
+            // telling the command what you want to do
             var sql = @"SELECT *
                         FROM Loaves";
-            command.CommandText = sql;
 
-            //5 send command to sql server or "execute the command"
-            //nonquery - doesnt care just shows that it works
-            //reader - gets all results
-            //scalar - left most top column
-            var reader = command.ExecuteReader();
-
-            //6 loop over our results
-            // while loop continues to pull one row at a time until gone
-            while (reader.Read())
-            {
-                
-                // add to lisrt
-                loaves.Add(MapLoaf(reader));
-            }
+            var results = db.Query<Loaf>(sql).ToList();
             
-            return loaves;
+            return results;
             
         }
 
         public void Add(Loaf loaf)
         {
-            var biggestExistingId = _loaves.Max(bread => bread.Id);
-            loaf.Id = biggestExistingId + 1;
+            var sql = @"INSERT INTO [dbo].[Loaves] ([Size],[Type],[WeightInOunces],[Price],[Sliced])
+                                    OUTPUT inserted.Id 
+                                    VALUES(@Size ,@Type, @WeightInOunces, @Price, @Sliced)";
+            // create connection
+            using var db = new SqlConnection(ConnectionString);
+            var id = db.ExecuteScalar<int>(sql, loaf);
 
-            _loaves.Add(loaf);
+
+            loaf.Id = id;
+            /*_loaves.Add(loaf);*/
         }
 
         public Loaf Get(int id)
@@ -71,8 +51,11 @@ namespace LoafAndStranger.DataAccess
                         WHERE Id = @id"; // this id has to match with below
 
             // create a connection
-            using var connection = new SqlConnection(ConnectionString);
-            connection.Open();
+            using var db = new SqlConnection(ConnectionString);
+
+            var loaf = db.QueryFirstOrDefault<Loaf>(sql, new { id = id });
+            return loaf;
+            /*connection.Open();
 
             // create command
             var command = connection.CreateCommand();
@@ -88,38 +71,43 @@ namespace LoafAndStranger.DataAccess
                 return loaf;
             }
 
-            return null;
+            return null;*/
            /* var loaf = _loaves.FirstOrDefault(bread => bread.Id == id);
             return loaf;*/
         }
 
-        public void Remove(int id)
+        public void Slice(int id)
         {
-            var loafToRemove = Get(id);
-            _loaves.Remove(loafToRemove);
+            var sql = @"UPDATE Loaves
+                        SET Sliced = 1
+                        WHERE Id = @id";
+            using var db = new SqlConnection(ConnectionString);
+            db.Execute(sql, new { id });
         }
 
-        Loaf MapLoaf(SqlDataReader reader)
+        public void Remove(int id)
         {
-            var id = (int)reader["Id"]; // using (int) is explicit cast, throws exceptions
-            var size = (LoafSize)reader["Size"];
-            var type = reader["Type"] as string; // implicit casting, returns null and not exception
-            var weightInOunces = (int)reader["WeightInOunces"];
-            var price = (decimal)reader["Price"];
-            var sliced = (bool)reader["Sliced"];
-            var createdDate = (DateTime)reader["CreatedDate"];
+            var sql = @"Delete
+                        FROM Loaves
+                        WHERE Id = @id";
+            using var db = new SqlConnection(ConnectionString);
+            db.Execute(sql, new { id }); // this does the same as id = id
 
-            // make a loaf
-            var loaf = new Loaf
-            {
-                Id = id,
-                Price = price,
-                Size = size,
-                Sliced = sliced,
-                Type = type,
-                WeightInOunces = weightInOunces,
-            };
-            return loaf;
+        }
+
+      public void Update(Loaf loaf)
+        {
+            var sql = @"UPDATE Loaves
+                            SET Price = @price,
+	                        Size = @size,
+	                        WeightInOunces = @weightinounces,
+	                        Sliced = @sliced,
+	                        Type = @type
+                        WHERE Id = @id";
+
+            using var db = new SqlConnection(ConnectionString);
+
+            db.Execute(sql, loaf);
         }
     }
 }
